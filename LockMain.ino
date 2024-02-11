@@ -14,14 +14,14 @@
 
 #define WIFI_NETWORK "Sergey"
 #define WIFI_PASSWORD "00000000"
-#define BOT_API_TOKEN "6251822916:AAH1vJYjzLuTnNTacyDWqK39H_yrQE6uVcY"
-#define CHAT_IDENTIFIER "-4080876628"
+#define BOT_API_TOKEN "My_tokey_chat_idmn"
+#define CHAT_IDENTIFIER "Mu_chat_id"
 FastBot bot(BOT_API_TOKEN);
 
-const char* mqttServer = "192.168.0.110";
+const char* mqttServer = "192.168.--.---";
 const int mqttPort = 1883;
 const char* mqttUser = "Sergey";
-const char* mqttPassword = "craftgame2";
+const char* mqttPassword = "mqtt_password";
 
 const int servoPin = 4;
 const int hallSensorPin = 2;
