@@ -7,21 +7,21 @@
 #include <MFRC522.h>
 #include <AmperkaKB.h>
 #include <NTPClient.h>
-//#include <Servo.h>
+#include <ESP32Servo.h> 
 #include <FastBot.h> 
 #include <PubSubClient.h>
 
 
 #define WIFI_NETWORK "Sergey"
 #define WIFI_PASSWORD "00000000"
-#define BOT_API_TOKEN "My_tokey_chat_idmn"
-#define CHAT_IDENTIFIER "Mu_chat_id"
+#define BOT_API_TOKEN ""
+#define CHAT_IDENTIFIER ""
 FastBot bot(BOT_API_TOKEN);
 
-const char* mqttServer = "192.168.--.---";
+const char* mqttServer = "192.168.146.29";
 const int mqttPort = 1883;
 const char* mqttUser = "Sergey";
-const char* mqttPassword = "mqtt_password";
+const char* mqttPassword = "";
 
 const int servoPin = 4;
 const int hallSensorPin = 2;
@@ -32,9 +32,8 @@ int click_times = 0;
 
 String passwords[100];
 String nfcIDs[100];
-File eventLogFile;
 
-//Servo MG995_Servo  = Servo();
+Servo MG995_Servo;
 MFRC522 rfid(5, 32);
 AmperkaKB KB(13, 12, 14, 27, 25, 26, 15, 33);
 SoftwareSerial fserial(17, 16);
@@ -69,14 +68,13 @@ void setup() {
   // attach message handler function
   bot.attach(newMsg);
 
-  eventLogFile = SPIFFS.open("/event_log.txt", "a");
-  if (!eventLogFile) {
-    logEvent("Failed to open event_log.txt for writing", "ERROR");
-  }
-
+  MG995_Servo.setPeriodHertz(50);// Standard 50hz servo
+  MG995_Servo.attach(servoPin, 500, 2400);
+  
 
   client.setServer(mqttServer, mqttPort);
   client.setCallback(callback);
+  
  
   while (!client.connected()) {
     Serial.println("Connecting to MQTT...");
@@ -513,7 +511,7 @@ bool checkPassword(String password) {
 
 void unlockDoor() {
   Serial.println("Door opened");
-//  MG995_Servo.write(4, 170);
+  MG995_Servo.write(170);
   logEvent("Door unlocked", "INF");
   while (digitalRead(hallSensorPin) != LOW) {
   }
@@ -524,7 +522,7 @@ void unlockDoor() {
 void lockDoor() {
   Serial.println("Door locked");
 
-//  MG995_Servo.write(4, 0);
+  MG995_Servo.write(0);
   logEvent("Door locked", "INF");
 }
 
@@ -676,9 +674,16 @@ void addNewPassword() {
 
 
 void logEvent(String message, String type) {
-  String logEntry = "[" + type + "] " + getTime() + " " + message + "\n";
-  Serial.println(logEntry);
-  eventLogFile.println(logEntry);
+  File eventLogFile = SPIFFS.open("/event_log.txt", "a");
+  if (!eventLogFile) {
+    logEvent("Failed to open event_log.txt for writing", "ERROR");
+  }
+  else{
+    String logEntry = "[" + type + "] " + getTime() + " " + message + "\n";
+    Serial.println(logEntry);
+    eventLogFile.println(logEntry);
+  }
+  eventLogFile.close();
 }
 
 String getTime() {  
@@ -702,9 +707,19 @@ void connectWiFi() {
 }
 
 void newMsg(FB_msg& msg) {
+
   if(msg.text == "Open") unlockDoor();
   else if(msg.text == "Logs"){
+
+    File eventLogFile = SPIFFS.open("/event_log.txt", "r");
+    if (!eventLogFile) {
+      logEvent("Failed to open event_log.txt for writing", "ERROR");
+    }
+
     bot.sendFile(eventLogFile, FB_DOC, "event_log.txt",  CHAT_IDENTIFIER);
+
+    eventLogFile.close();
+
   } 
   
   else Serial.println(msg.text);
