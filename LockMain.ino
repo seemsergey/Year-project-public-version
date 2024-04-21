@@ -12,29 +12,47 @@
 #include <PubSubClient.h>
 
 
-#define WIFI_NETWORK "Sergey"
-#define WIFI_PASSWORD "00000000"
-#define BOT_API_TOKEN ""
-#define CHAT_IDENTIFIER ""
+#define WIFI_PASSWORD "04533801"
+#define WIFI_NETWORK "SeemWi-fi"
+#define BOT_API_TOKEN "6251822916:AAH1vJYjzLuTnNTacyDWqK39H_yrQE6uVcY"
+#define CHAT_IDENTIFIER "-4080876628"
 FastBot bot(BOT_API_TOKEN);
 
-const char* mqttServer = "192.168.146.29";
+const char* mqttServer = "192.168.0.112";
 const int mqttPort = 1883;
 const char* mqttUser = "Sergey";
-const char* mqttPassword = "";
+const char* mqttPassword = "craftgame2";
 
 const int servoPin = 4;
 const int hallSensorPin = 2;
 const int keypadDelay = 5000;
-unsigned long lastKeyPressTime = 0;  // Variable to store the time of the last key press
+unsigned long lastKeyPressTime = 0;
 String currentPassword = "";
 int click_times = 0;
 
 String passwords[100];
+int passwordCount = 0;
 String nfcIDs[100];
+
+
+struct PasswordEntry {
+  int year;
+  int month;
+  int day;
+  int hour;
+  String password;
+  unsigned long timestamp;
+};
+
+
+PasswordEntry Entrypasswords[100];
+
 
 Servo MG995_Servo;
 MFRC522 rfid(5, 32);
+MFRC522::MIFARE_Key key; 
+
+
 AmperkaKB KB(13, 12, 14, 27, 25, 26, 15, 33);
 SoftwareSerial fserial(17, 16);
 FPM finger(&fserial);
@@ -46,19 +64,32 @@ PubSubClient client(espClient);
 
 
 void setup() {
+  SPIFFS.begin(true);
+  SPI.begin();
   rfid.PCD_Init();
   KB.begin(KB4x4);
 
   Serial.begin(115200);
   fserial.begin(57600);
-  SPIFFS.begin(true);
-  SPI.begin();
+  
+  
+
+  if (finger.begin()) {
+        finger.readParams(&params);
+        Serial.println("Found fingerprint sensor!");
+        Serial.print("Capacity: "); Serial.println(params.capacity);
+        Serial.print("Packet length: "); Serial.println(FPM::packet_lengths[params.packet_len]);
+    } else {
+        Serial.println("Did not find fingerprint sensor :(");
+        while (1) yield();
+    }
 
   pinMode(hallSensorPin, INPUT);
 
   connectWiFi(); // Добавлен вызов функции подключения к WiFi
 
   readPasswords();
+  readTimePasswords();
   readNfcIDs();
 
   timeClient.begin();
@@ -96,6 +127,8 @@ void setup() {
   client.subscribe("enroll_function");
   client.subscribe("pass_create");
   client.subscribe("door_opener");
+
+
 }
 
 void loop() {
@@ -121,9 +154,7 @@ void loop() {
     //clearPasswordIfTimeout();  // Call the wrapper function
 
     if (key == '#') {
-      if (checkFingerprint()) {
-        unlockDoor();}
-      }
+      checkFingerprint();}
     else if (key == '*') {
       currentPassword = "";
       click_times = 0;
@@ -145,6 +176,9 @@ void loop() {
 
     lastKeyPressTime = millis();  // Update the last key press time
   }
+  MG995_Servo.write(1);
+
+
 }
 
 void callback(String topic, byte* payload, unsigned int length) {
@@ -264,6 +298,7 @@ int checkFingerprint(void)  {
     
     if (p == FPM_OK) {
         Serial.println("Found a print match!");
+        unlockDoor();
     } else if (p == FPM_PACKETRECIEVEERR) {
         Serial.println("Communication error");
         return p;
@@ -505,15 +540,26 @@ bool checkPassword(String password) {
       break;
     }
   }
+
+
+  for (int i = 0; i < 100; i++) {
+    Serial.println(Entrypasswords[i].password);
+    if (password == Entrypasswords[i].password) {
+      passwordFound = true;
+      break;
+    }
+  }
+
   Serial.print(currentPassword);
   return passwordFound;
 }
 
 void unlockDoor() {
   Serial.println("Door opened");
-  MG995_Servo.write(170);
+  MG995_Servo.write(89);
   logEvent("Door unlocked", "INF");
-  while (digitalRead(hallSensorPin) != LOW) {
+  while (digitalRead(hallSensorPin) == LOW) {
+    MG995_Servo.write(89);
   }
     lockDoor();
 
@@ -522,7 +568,7 @@ void unlockDoor() {
 void lockDoor() {
   Serial.println("Door locked");
 
-  MG995_Servo.write(0);
+  MG995_Servo.write(1);
   logEvent("Door locked", "INF");
 }
 
@@ -547,15 +593,49 @@ void readPasswords() {
     Serial.println(passwords[i]);
   }
 }
-/*
-void clearPasswordIfTimeout() {
-  unsigned long currentTime = millis();
-  if ((currentTime - lastKeyPressTime) > 5000) {  // Check if more than 5 seconds have passed
-    currentPassword = "";  // Clear the password
-    click_times = 0;       // Reset click_times
+
+
+
+void readTimePasswords() {
+  File passwordFile = SPIFFS.open("/Time_password.txt");
+  if (passwordFile) {
+    while (passwordFile.available()) {
+      String passwordLine = passwordFile.readStringUntil('\n');
+      PasswordEntry entry;
+      entry.year = passwordLine.substring(0, 4).toInt();
+      entry.month = passwordLine.substring(5, 7).toInt();
+      entry.day = passwordLine.substring(8, 10).toInt();
+      entry.hour = passwordLine.substring(11, 13).toInt();
+      entry.password = passwordLine.substring(14);
+      Entrypasswords[passwordCount++] = entry;
+    }
+    passwordFile.close();
+
+    for (int i = 0; i < passwordCount; i++) {
+      Serial.print("Пароль ");
+      Serial.print(i + 1);
+      Serial.print(": ");
+      Serial.println(Entrypasswords[i].password);
+    }
+  } else {
+    Serial.println("Ошибка открытия файла passwords.txt");
   }
 }
-*/
+
+void clearPasswordIfTimeout() {
+  String formattedDate = timeClient.getFormattedDate();
+  int currentYear = formattedDate.substring(0, 4).toInt();
+  int currentMonth = formattedDate.substring(5, 7).toInt();
+  int currentDay = formattedDate.substring(8, 10).toInt();
+  int currentHour = formattedDate.substring(11, 13).toInt();
+
+  for (int i = 0; i < passwordCount; i++) {
+    if (currentYear > Entrypasswords[i].year || currentMonth > Entrypasswords[i].month || currentDay > Entrypasswords[i].day || currentHour > Entrypasswords[i].hour) {
+      // Удалить пароль
+      Entrypasswords[i] = Entrypasswords[--passwordCount];
+    }
+  }
+}
 
 void readNfcIDs() {
   File file = SPIFFS.open("/nfc_ids.txt", "r");
@@ -712,15 +792,9 @@ void newMsg(FB_msg& msg) {
   else if(msg.text == "Logs"){
 
     File eventLogFile = SPIFFS.open("/event_log.txt", "r");
-    if (!eventLogFile) {
-      logEvent("Failed to open event_log.txt for writing", "ERROR");
-    }
-
+    if (!eventLogFile) logEvent("Failed to open event_log.txt for writing", "ERROR");
     bot.sendFile(eventLogFile, FB_DOC, "event_log.txt",  CHAT_IDENTIFIER);
-
     eventLogFile.close();
-
-  } 
-  
+  }  
   else Serial.println(msg.text);
 }
