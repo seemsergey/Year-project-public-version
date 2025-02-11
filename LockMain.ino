@@ -12,16 +12,16 @@
 #include <PubSubClient.h>
 
 
-#define WIFI_PASSWORD "*****"
-#define WIFI_NETWORK "*****"
-#define BOT_API_TOKEN "*****"
-#define CHAT_IDENTIFIER "*****"
+#define WIFI_PASSWORD "00000000"
+#define WIFI_NETWORK "Sergey"
+#define BOT_API_TOKEN "6251822916:AAH1vJYjzLuTnNTacyDWqK39H_yrQE6uVcY"
+#define CHAT_IDENTIFIER "-4080876628"
 FastBot bot(BOT_API_TOKEN);
 
-const char* mqttServer = "192.168.0.112";
+const char* mqttServer = "192.168.37.29";
 const int mqttPort = 1883;
-const char* mqttUser = "*****";
-const char* mqttPassword = "*****";
+const char* mqttUser = "Sergey";
+const char* mqttPassword = "craftgame2";
 
 const int servoPin = 4;
 const int hallSensorPin = 2;
@@ -41,7 +41,7 @@ struct PasswordEntry {
   int day;
   int hour;
   String password;
-  unsigned long timestamp;
+  //unsigned long timestamp;
 };
 
 
@@ -62,6 +62,8 @@ NTPClient timeClient(ntpUDP);
 WiFiClient espClient;
 PubSubClient client(espClient);
 
+String expectedInput = "";
+
 
 void setup() {
   SPIFFS.begin(true);
@@ -71,8 +73,6 @@ void setup() {
 
   Serial.begin(115200);
   fserial.begin(57600);
-  
-  
 
   if (finger.begin()) {
         finger.readParams(&params);
@@ -86,7 +86,7 @@ void setup() {
 
   pinMode(hallSensorPin, INPUT);
 
-  connectWiFi(); // Добавлен вызов функции подключения к WiFi
+  connectWiFi();
 
   readPasswords();
   readTimePasswords();
@@ -96,17 +96,16 @@ void setup() {
   timeClient.setTimeOffset(25200);
 
   bot.setChatID(CHAT_IDENTIFIER);
-  // attach message handler function
   bot.attach(newMsg);
+  bot.showMenu("Open \t Add new password \t Logs");
 
-  MG995_Servo.setPeriodHertz(50);// Standard 50hz servo
+
+  MG995_Servo.setPeriodHertz(50);
   MG995_Servo.attach(servoPin, 500, 2400);
   
-
   client.setServer(mqttServer, mqttPort);
   client.setCallback(callback);
   
- 
   while (!client.connected()) {
     Serial.println("Connecting to MQTT...");
  
@@ -119,7 +118,6 @@ void setup() {
       Serial.print("failed with state ");
       Serial.print(client.state());
       delay(2000);
- 
     }
   }
  
@@ -127,8 +125,6 @@ void setup() {
   client.subscribe("enroll_function");
   client.subscribe("pass_create");
   client.subscribe("door_opener");
-
-
 }
 
 void loop() {
@@ -151,7 +147,7 @@ void loop() {
 
   if (KB.justReleased()) {
     char key = KB.getChar;
-    //clearPasswordIfTimeout();  // Call the wrapper function
+    clearPasswordIfTimeout();
 
     if (key == '#') {
       checkFingerprint();}
@@ -160,7 +156,6 @@ void loop() {
       click_times = 0;
     } else {
     Serial.println(key);
-
       click_times++;
       currentPassword += key;
       Serial.println(currentPassword);
@@ -174,25 +169,20 @@ void loop() {
       }
     }
 
-    lastKeyPressTime = millis();  // Update the last key press time
+    lastKeyPressTime = millis();
   }
   MG995_Servo.write(1);
-
-
 }
 
-void callback(String topic, byte* payload, unsigned int length) {
- 
+void callback(String topic, byte* payload, unsigned int length) { 
   Serial.print("Message arrived in topic: ");
   Serial.println(topic);
- 
   Serial.print("Message:");
   for (int i = 0; i < length; i++) {
     Serial.print((char)payload[i]);
   }
  
   Serial.println();
-  Serial.println("-----------------------");
  
   if (topic == "door_opener") {
     unlockDoor();
@@ -208,7 +198,6 @@ void callback(String topic, byte* payload, unsigned int length) {
     addNewPassword();
   else if (topic == "UID_create")
     addNewNfcTag();
-  
 }
 
 bool checkNFCUID(String uid) {
@@ -224,7 +213,6 @@ bool checkNFCUID(String uid) {
 int checkFingerprint(void)  {
     int16_t p = -1;
 
-    /* first get the finger image */
     Serial.println("Waiting for valid finger");
     while (p != FPM_OK) {
         p = finger.getImage();
@@ -254,7 +242,6 @@ int checkFingerprint(void)  {
         yield();
     }
 
-    /* convert it */
     p = finger.image2Tz();
     switch (p) {
         case FPM_OK:
@@ -283,13 +270,8 @@ int checkFingerprint(void)  {
             return p;
     }
 
-    /* search the database for the converted print */
     uint16_t fid, score;
     p = finger.searchDatabase(&fid, &score);
-    
-    /* now wait to remove the finger, though not necessary; 
-       this was moved here after the search because of the R503 sensor, 
-       which seems to wipe its buffers after each scan */
     Serial.println("Remove finger");
     while (finger.getImage() != FPM_NOFINGER) {
         delay(500);
@@ -316,7 +298,6 @@ int checkFingerprint(void)  {
         return p;
     }
 
-    // found a match!
     Serial.print("Found ID #"); Serial.print(fid);
     Serial.print(" with confidence of "); Serial.println(score);
 }
@@ -351,7 +332,6 @@ int16_t enroll_finger(int16_t fid) {
         }
         yield();
     }
-    // OK success!
 
     p = finger.image2Tz(1);
     switch (p) {
@@ -419,8 +399,6 @@ int16_t enroll_finger(int16_t fid) {
         yield();
     }
 
-    // OK success!
-
     p = finger.image2Tz(2);
     switch (p) {
         case FPM_OK:
@@ -449,8 +427,6 @@ int16_t enroll_finger(int16_t fid) {
             return p;
     }
 
-
-    // OK converted!
     p = finger.createModel();
     if (p == FPM_OK) {
         Serial.println("Prints matched!");
@@ -533,24 +509,28 @@ bool checkPassword(String password) {
   click_times = 0;
   currentPassword = "";
   bool passwordFound = false;
+
   for (int i = 0; i < 100; i++) {
-    Serial.println(passwords[i]);
-    if (password == passwords[i]) {
+    if (password.equals(passwords[i])) {
       passwordFound = true;
       break;
     }
   }
 
-
   for (int i = 0; i < 100; i++) {
+    Serial.print("Checking password: ");
     Serial.println(Entrypasswords[i].password);
-    if (password == Entrypasswords[i].password) {
+    
+    if (password.equals(Entrypasswords[i].password)) {
+      Serial.println("Password found: " + Entrypasswords[i].password);
       passwordFound = true;
       break;
     }
   }
 
-  Serial.print(currentPassword);
+  Serial.print("Entered password: ");
+  Serial.println(password);
+  Serial.println(passwordFound);
   return passwordFound;
 }
 
@@ -558,10 +538,8 @@ void unlockDoor() {
   Serial.println("Door opened");
   MG995_Servo.write(89);
   logEvent("Door unlocked", "INF");
-  while (digitalRead(hallSensorPin) == LOW) {
-    MG995_Servo.write(89);
-  }
-    lockDoor();
+  delay(250);
+  lockDoor();
 
 }
 
@@ -594,47 +572,97 @@ void readPasswords() {
   }
 }
 
-
-
 void readTimePasswords() {
-  File passwordFile = SPIFFS.open("/Time_password.txt");
-  if (passwordFile) {
-    while (passwordFile.available()) {
-      String passwordLine = passwordFile.readStringUntil('\n');
-      PasswordEntry entry;
-      entry.year = passwordLine.substring(0, 4).toInt();
-      entry.month = passwordLine.substring(5, 7).toInt();
-      entry.day = passwordLine.substring(8, 10).toInt();
-      entry.hour = passwordLine.substring(11, 13).toInt();
-      entry.password = passwordLine.substring(14);
-      Entrypasswords[passwordCount++] = entry;
+    File passwordFile = SPIFFS.open("/Time_password.txt", "r");
+    if (!passwordFile) {
+        Serial.println("Ошибка открытия файла /Time_password.txt");
+        return;
+    }
+
+    passwordCount = 0;
+    String updatedPasswords = ""; 
+    time_t epochTime = timeClient.getEpochTime();
+    struct tm *ptm = gmtime(&epochTime);
+    time_t currentTime = mktime(ptm);
+
+    Serial.println("Проверка паролей...");
+
+    while (passwordFile.available() && passwordCount < 100) {
+        //разбиение строки файла на составные части(дату и пароль)
+        String passwordLine = passwordFile.readStringUntil('\n');
+        PasswordEntry entry;
+        entry.year = passwordLine.substring(0, 4).toInt();
+        entry.month = passwordLine.substring(5, 7).toInt();
+        entry.day = passwordLine.substring(8, 10).toInt();
+        entry.hour = passwordLine.substring(11, 13).toInt();
+        entry.password = passwordLine.substring(14);
+
+        //перевод UNIX-время для сравнения
+        struct tm passwordTm = {0};
+        passwordTm.tm_year = entry.year - 1900;
+        passwordTm.tm_mon = entry.month - 1;
+        passwordTm.tm_mday = entry.day;
+        passwordTm.tm_hour = entry.hour;
+        time_t passwordTime = mktime(&passwordTm);
+
+        //проверка актуальности
+        if (currentTime > passwordTime) {
+            Serial.print("Удален просроченный пароль: ");
+            Serial.println(entry.password);
+        }
+        else {
+            updatedPasswords += passwordLine + "\n";
+            Entrypasswords[passwordCount++] = entry;
+        }
     }
     passwordFile.close();
 
-    for (int i = 0; i < passwordCount; i++) {
-      Serial.print("Пароль ");
-      Serial.print(i + 1);
-      Serial.print(": ");
-      Serial.println(Entrypasswords[i].password);
+    if (SPIFFS.exists("/Time_password.txt")) {
+        SPIFFS.remove("/Time_password.txt");
     }
-  } else {
-    Serial.println("Ошибка открытия файла passwords.txt");
-  }
+
+    File updatedFile = SPIFFS.open("/Time_password.txt", "w");
+    if (updatedFile) {
+        updatedFile.print(updatedPasswords);
+        updatedFile.close();
+        Serial.println("Файл обновлен: устаревшие пароли удалены.");
+    }
+    else {
+        Serial.println("Ошибка обновления файла паролей.");
+    }
+
+    Serial.println("Загружены актуальные пароли:");
+    for (int i = 0; i < passwordCount; i++) {
+        Serial.print("Пароль ");
+        Serial.print(i + 1);
+        Serial.print(": ");
+        Serial.println(Entrypasswords[i].password);
+    }
 }
 
 void clearPasswordIfTimeout() {
-  String formattedDate = timeClient.getFormattedDate();
-  int currentYear = formattedDate.substring(0, 4).toInt();
-  int currentMonth = formattedDate.substring(5, 7).toInt();
-  int currentDay = formattedDate.substring(8, 10).toInt();
-  int currentHour = formattedDate.substring(11, 13).toInt();
+    time_t epochTime = timeClient.getEpochTime();
+    struct tm *ptm = gmtime(&epochTime);
+    time_t currentTime = mktime(ptm);
 
-  for (int i = 0; i < passwordCount; i++) {
-    if (currentYear > Entrypasswords[i].year || currentMonth > Entrypasswords[i].month || currentDay > Entrypasswords[i].day || currentHour > Entrypasswords[i].hour) {
-      // Удалить пароль
-      Entrypasswords[i] = Entrypasswords[--passwordCount];
+    int i = 0;
+    while (i < passwordCount) {
+        struct tm passwordTm = {0};
+        passwordTm.tm_year = Entrypasswords[i].year - 1900;
+        passwordTm.tm_mon = Entrypasswords[i].month - 1;
+        passwordTm.tm_mday = Entrypasswords[i].day;
+        passwordTm.tm_hour = Entrypasswords[i].hour;
+        time_t passwordTime = mktime(&passwordTm);
+
+        if (currentTime > passwordTime) {
+            Serial.print("Удален просроченный пароль (из памяти): ");
+            Serial.println(Entrypasswords[i].password);
+            Entrypasswords[i] = Entrypasswords[--passwordCount];
+        }
+        else {
+            i++;
+        }
     }
-  }
 }
 
 void readNfcIDs() {
@@ -660,7 +688,7 @@ void readNfcIDs() {
 }
 
 void addNewNfcTag() {
-  Serial.println("addNewNfcTag");
+  //Serial.println("addNewNfcTag");
   while (true){
     if (rfid.PICC_IsNewCardPresent() && rfid.PICC_ReadCardSerial()) {
       String newTagUID = "";
@@ -670,7 +698,6 @@ void addNewNfcTag() {
       rfid.PICC_HaltA();
       rfid.PCD_StopCrypto1();
       
-      // Проверяем, есть ли такая метка уже в списке
       bool tagExists = false;
       for (int i = 0; i < 100; i++) {
         if (newTagUID == nfcIDs[i]) {
@@ -680,12 +707,10 @@ void addNewNfcTag() {
       }
 
       if (!tagExists) {
-        // Сохраняем новую метку в файл
         File nfcFile = SPIFFS.open("/nfc_ids.txt", "a");
         if (nfcFile) {
           nfcFile.println(newTagUID);
           nfcFile.close();
-          // Обновляем массив UID меток в программе
           for (int i = 0; i < 100; i++) {
             if (nfcIDs[i] == "") {
               nfcIDs[i] = newTagUID;
@@ -694,12 +719,14 @@ void addNewNfcTag() {
           }
           Serial.println("New NFC tag added and updated successfully.");
           break;
-        } else {
+        }
+        else {
           Serial.println("Error opening NFC tag file for writing.");
           break;
 
         }
-      } else {
+      }
+      else {
         Serial.println("NFC tag already exists in the list.");
         break;
 
@@ -709,7 +736,7 @@ void addNewNfcTag() {
 }
 
 void addNewPassword() {
-  Serial.println("addNewPassword");
+  //Serial.println("addNewPassword");
   int indx = 0;
   String newPassword = "";
   while(indx != 4) {
@@ -731,12 +758,10 @@ void addNewPassword() {
   }
 
   if (!passExists) {
-    // Сохраняем новую метку в файл
     File passFile = SPIFFS.open("/passwords.txt", "a");
     if (passFile) {
       passFile.println(newPassword);
       passFile.close();
-      // Обновляем массив UID меток в программе
       for (int i = 0; i < 100; i++) {
         if (passwords[i] == "") {
           passwords[i] = newPassword;
@@ -744,19 +769,20 @@ void addNewPassword() {
         }
       }
       Serial.println("New password added and updated successfully.");
-    } else {
+    }
+    else {
       Serial.println("Error opening password file for writing.");
     }
-  } else {
+  }
+  else {
     Serial.println("password already exists in the list.");
   }
 }
 
-
 void logEvent(String message, String type) {
   File eventLogFile = SPIFFS.open("/event_log.txt", "a");
   if (!eventLogFile) {
-    logEvent("Failed to open event_log.txt for writing", "ERROR");
+    Serial.println("Failed to open event_log.txt for writing");
   }
   else{
     String logEntry = "[" + type + "] " + getTime() + " " + message + "\n";
@@ -770,7 +796,6 @@ String getTime() {
   timeClient.update();
   return timeClient.getFormattedTime();
 }
-
 
 void connectWiFi() {
   delay(2000);
@@ -788,13 +813,148 @@ void connectWiFi() {
 
 void newMsg(FB_msg& msg) {
 
-  if(msg.text == "Open") unlockDoor();
-  else if(msg.text == "Logs"){
+  if (expectedInput != ""){
+    if (expectedInput == "temporary_password") {
+      Serial.println("Processing temporary password...");
+      if (msg.text.length() > 10) {
+        time_t epochTime = timeClient.getEpochTime();
+        struct tm *ptm = gmtime(&epochTime);
+        time_t currentTime = mktime(ptm);
 
+        String passwordLine = msg.text;
+        PasswordEntry entry;
+        entry.year = passwordLine.substring(0, 4).toInt();
+        entry.month = passwordLine.substring(5, 7).toInt();
+        entry.day = passwordLine.substring(8, 10).toInt();
+        entry.hour = passwordLine.substring(11, 13).toInt();
+        entry.password = passwordLine.substring(14);
+
+        struct tm passwordTm = {0};
+        passwordTm.tm_year = entry.year - 1900;
+        passwordTm.tm_mon = entry.month - 1;
+        passwordTm.tm_mday = entry.day;
+        passwordTm.tm_hour = entry.hour;
+        time_t passwordTime = mktime(&passwordTm);
+        if (currentTime > passwordTime) {
+          bot.sendMessage("Временный пароль устарел.");
+        }
+        else {
+          File passwordFile = SPIFFS.open("/Time_password.txt", "a");
+          if (passwordFile) {
+            passwordFile.println(msg.text);
+            passwordFile.close();
+            bot.sendMessage("Временный пароль сохранен.");
+          }
+          else {
+            bot.sendMessage("Ошибка сохранения пароля.");
+          }
+          }
+        }
+      else {
+          bot.sendMessage("Некорректный формат. Попробуйте снова.");
+        }
+      expectedInput = "";
+      return;
+    }
+    else if (expectedInput == "permanent_password") {
+      Serial.println("Processing permanent password...");
+      if (msg.text.length() == 4 && msg.text.toInt() != 0) {
+        File passFile = SPIFFS.open("/passwords.txt", "a");
+        if (passFile) {
+            passFile.println(msg.text);
+            passFile.close();
+            bot.sendMessage("Постоянный пароль сохранен.");
+        }
+        else {
+          bot.sendMessage("Ошибка сохранения пароля.");
+        }
+      }
+      else {
+        bot.sendMessage("Некорректный формат. Введите 4-значный пароль.");
+      }
+      expectedInput = "";
+      return;
+    } 
+    else if (expectedInput == "nfc_uid") {
+      Serial.println("Processing NFC UID...");
+      addNewNfcTag();
+      bot.sendMessage("Новая NFC-карта добавлена.");
+      expectedInput = "";
+      return;
+    }   
+    else {
+      Serial.println("Пароль не получен");
+    }
+  }
+
+  if(msg.text == "Open") {
+    unlockDoor();
+    bot.answer("Дверь открыта", FB_NOTIF);
+    return;
+  }
+  else if(msg.text == "Logs") {
     File eventLogFile = SPIFFS.open("/event_log.txt", "r");
-    if (!eventLogFile) logEvent("Failed to open event_log.txt for writing", "ERROR");
-    bot.sendFile(eventLogFile, FB_DOC, "event_log.txt",  CHAT_IDENTIFIER);
+    if (!eventLogFile) {
+      logEvent("Failed to open event_log.txt for writing", "ERROR");
+      bot.answer("Ошибка открытия файла", FB_ALERT);
+      return;
+    }
+    bot.sendFile(eventLogFile, FB_DOC, "event_log.txt", CHAT_IDENTIFIER);
     eventLogFile.close();
-  }  
-  else Serial.println(msg.text);
+    bot.answer("Лог-файл отправлен", FB_NOTIF);
+    return;
+  }
+  else if(msg.text == "Add new password") {
+    bot.showMenu("Пароль \t Отпечаток пальца \t UID карты \n Отмена");
+    return;
+    }
+  else if(msg.text == "Пароль") {
+    bot.showMenu("Временный \t Постоянный");
+    return;
+  }
+  else if (msg.text == "Временный") {
+    expectedInput = "temporary_password";
+    String examplePassword = getCurrentDateTime() + " 1234";
+    bot.sendMessage("Введите временный пароль вместе с датой (Формат: ГГГГ-ММ-ДД ЧЧ пароль)\nПример: " + examplePassword);
+    return;
+  }
+  else if (msg.text == "Постоянный") {
+    expectedInput = "permanent_password";
+    bot.sendMessage("Введите постоянный пароль (4 цифры)");
+    Serial.print("###Expected input: ");
+    Serial.println(expectedInput);
+    return;
+  }
+  else if (msg.text == "Отпечаток пальца") {
+    int16_t fid;
+    if (get_free_id(&fid)) {
+      enroll_finger(fid);
+      bot.sendMessage("Добавление отпечатка пальца завершено.");
+      return;
+    }
+    else {
+      bot.sendMessage("Нет свободных слотов для отпечатков пальцев.");
+      return;
+    }
+  }
+  else if (msg.text == "UID карты") {
+    expectedInput = "nfc_uid";
+    bot.sendMessage("Приложите карту к сканеру NFC.");
+    return;
+  }
+  else {
+    bot.sendMessage(msg.text);
+    return;
+  }
+  
+
+  
+}
+
+String getCurrentDateTime() {
+    time_t now = time(nullptr);
+    struct tm* timeinfo = localtime(&now);
+    char buffer[20];
+    strftime(buffer, sizeof(buffer), "%Y-%m-%d %H", timeinfo);
+    return String(buffer);
 }
