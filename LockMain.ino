@@ -12,16 +12,16 @@
 #include <PubSubClient.h>
 
 
-#define WIFI_PASSWORD "00000000"
-#define WIFI_NETWORK "Sergey"
-#define BOT_API_TOKEN "6251822916:AAH1vJYjzLuTnNTacyDWqK39H_yrQE6uVcY"
-#define CHAT_IDENTIFIER "-4080876628"
+#define WIFI_PASSWORD "***"
+#define WIFI_NETWORK "***"
+#define BOT_API_TOKEN "***"
+#define CHAT_IDENTIFIER "***"
 FastBot bot(BOT_API_TOKEN);
 
-const char* mqttServer = "192.168.37.29";
-const int mqttPort = 1883;
-const char* mqttUser = "Sergey";
-const char* mqttPassword = "craftgame2";
+const char* mqttServer = "***";
+const int mqttPort = ***;
+const char* mqttUser = "***";
+const char* mqttPassword = "***";
 
 const int servoPin = 4;
 const int hallSensorPin = 2;
